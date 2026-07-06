@@ -7,7 +7,7 @@ use ratatui::{
 
 use crate::app::{App, Focus};
 
-pub fn render(f: &mut Frame, app: &App) {
+pub fn render(f: &mut Frame, app: &mut App) {
     // Split the screen horizontally into Sidebar (25%) and Main Panel (75%)
     let main_chunks = Layout::default()
         .direction(Direction::Horizontal)
@@ -44,16 +44,20 @@ fn render_sidebar(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(list, area);
 }
 
-fn render_main_panel(f: &mut Frame, app: &App, area: Rect) {
-    // Split right panel vertically into Request Info (top) and Response Info (bottom)
+fn render_main_panel(f: &mut Frame, app: &mut App, area: Rect) {
+    // Split into 3 sections: URL (Top), Body (Middle), Response (Bottom)
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(3), Constraint::Min(0)])
+        .constraints([
+            Constraint::Length(3),      // URL Bar
+            Constraint::Min(10),        // Body Editor (takes at least 10 lines)
+            Constraint::Percentage(50), // Response (takes remaining bottom half)
+        ])
         .split(area);
 
     let active_req = &app.requests[app.selected_request_idx];
 
-    let url_border_style = if app.focus == Focus::UrlBar {
+    let url_style = if app.focus == Focus::UrlBar {
         Style::default().fg(Color::Yellow)
     } else {
         Style::default()
@@ -64,7 +68,7 @@ fn render_main_panel(f: &mut Frame, app: &App, area: Rect) {
         Block::default()
             .title(format!(" URL: {} (Press 'e' to edit) ", active_req.name))
             .borders(Borders::ALL)
-            .border_style(url_border_style),
+            .border_style(url_style),
     );
     f.render_widget(url_block, chunks[0]);
 
@@ -77,6 +81,24 @@ fn render_main_panel(f: &mut Frame, app: &App, area: Rect) {
         });
     }
 
+    let body_style = if app.focus == Focus::BodyEditor {
+        Style::default().fg(Color::Yellow)
+    } else {
+        Style::default()
+    };
+
+    app.body_input.set_block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(body_style)
+            .title(format!(
+                " Body ({:?}) - Press 'Tab' to switch focus ",
+                active_req.body.body_type
+            )),
+    );
+
+    f.render_widget(&app.body_input, chunks[1]);
+
     // Bottom: Response Area
     let response_content = if app.is_loading {
         "Sending request...".to_string()
@@ -86,10 +108,10 @@ fn render_main_panel(f: &mut Frame, app: &App, area: Rect) {
             resp.status_code, resp.duration_ms, resp.body
         )
     } else {
-        "Press <Enter> to dispatch request".to_string()
+        "Awaiting request...".to_string()
     };
 
     let response_block = Paragraph::new(response_content)
         .block(Block::default().title(" Response ").borders(Borders::ALL));
-    f.render_widget(response_block, chunks[1]);
+    f.render_widget(response_block, chunks[2]);
 }

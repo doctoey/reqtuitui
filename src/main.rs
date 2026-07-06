@@ -85,10 +85,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 5. Main TUI Event Loop
     loop {
-        terminal.draw(|f| ui::render(f, &app))?;
+        terminal.draw(|f| ui::render(f, &mut app))?;
         // Non-blocking poll for user input events
         if event::poll(Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
+                // --- GLOBAL TAB NAVIGATION ---
+                if key.code == KeyCode::Tab {
+                    app.focus = match app.focus {
+                        Focus::Sidebar => Focus::UrlBar,
+                        Focus::UrlBar => Focus::BodyEditor,
+                        Focus::BodyEditor => Focus::Sidebar,
+                    };
+                    continue;
+                }
+
+                // --- PANE-SPECIFIC CONTROLS ---
                 match app.focus {
                     Focus::Sidebar => {
                         match key.code {
@@ -96,9 +107,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             KeyCode::Down | KeyCode::Char('j') => {
                                 if app.selected_request_idx < app.requests.len().saturating_sub(1) {
                                     app.selected_request_idx += 1;
-                                    // Update URL bar to match new selection
-                                    app.url_input = app.url_input.clone().with_value(
-                                        app.requests[app.selected_request_idx].url.clone(),
+                                    let req = &app.requests[app.selected_request_idx];
+                                    app.url_input =
+                                        app.url_input.clone().with_value(req.url.clone());
+
+                                    // Update the text area with the new request's body
+                                    let body_text = req.body.content.clone().unwrap_or_default();
+                                    app.body_input = tui_textarea::TextArea::new(
+                                        body_text.lines().map(String::from).collect(),
                                     );
                                 }
                             }
@@ -113,6 +129,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             KeyCode::Enter => {
                                 let mut active_req = app.requests[app.selected_request_idx].clone();
                                 active_req.url = app.url_input.value().to_string();
+                                active_req.body.content = Some(app.body_input.lines().join("\n"));
                                 tx_worker.send(WorkMessage::RunRequest(active_req)).await?;
                             }
                             KeyCode::Char('e') => {
@@ -138,6 +155,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             // Pass all other keys (letters, backspace, arrows) directly to the
                             // input handler!
                             app.url_input.handle_event(&Event::Key(key));
+                        }
+                    },
+                    Focus::BodyEditor => match key.code {
+                        KeyCode::Esc => {
+                            app.focus = Focus::Sidebar;
+                        }
+                        _ => {
+                            app.body_input.input(key);
                         }
                     },
                 }
