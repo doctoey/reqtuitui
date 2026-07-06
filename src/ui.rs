@@ -1,11 +1,11 @@
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout, Position, Rect},
     style::{Color, Modifier, Style},
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 
-use crate::app::App;
+use crate::app::{App, Focus};
 
 pub fn render(f: &mut Frame, app: &App) {
     // Split the screen horizontally into Sidebar (25%) and Main Panel (75%)
@@ -53,13 +53,29 @@ fn render_main_panel(f: &mut Frame, app: &App, area: Rect) {
 
     let active_req = &app.requests[app.selected_request_idx];
 
+    let url_border_style = if app.focus == Focus::UrlBar {
+        Style::default().fg(Color::Yellow)
+    } else {
+        Style::default()
+    };
+
     // Top: Request URL Bar
-    let url_block = Paragraph::new(format!("URL: {}", active_req.url)).block(
+    let url_block = Paragraph::new(app.url_input.value()).block(
         Block::default()
-            .title(format!(" {} ", active_req.name))
-            .borders(Borders::ALL),
+            .title(format!(" URL: {} (Press 'e' to edit) ", active_req.name))
+            .borders(Borders::ALL)
+            .border_style(url_border_style),
     );
     f.render_widget(url_block, chunks[0]);
+
+    if app.focus == Focus::UrlBar {
+        // We calculate where the cursor should sit based on the chunk coordinates
+        // chunks[0].x + 1 accounts for the border thickness
+        f.set_cursor_position(Position {
+            x: chunks[0].x + 1 + app.url_input.visual_cursor() as u16,
+            y: chunks[0].y + 1,
+        });
+    }
 
     // Bottom: Response Area
     let response_content = if app.is_loading {

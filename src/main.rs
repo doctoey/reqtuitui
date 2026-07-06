@@ -15,8 +15,9 @@ use ratatui::{Terminal, backend::CrosstermBackend};
 use std::time::Duration;
 use std::{io, sync::Arc};
 use tokio::sync::mpsc;
+use tui_input::backend::crossterm::EventHandler;
 
-use crate::app::CurrentScreen;
+use crate::app::{CurrentScreen, Focus};
 use crate::{
     app::{App, UiMessage, WorkMessage},
     storage::StorageManager,
@@ -88,13 +89,57 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Non-blocking poll for user input events
         if event::poll(Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
-                match key.code {
-                    KeyCode::Char('q') => app.current_screen = CurrentScreen::Exiting,
-                    KeyCode::Enter => {
-                        let active_req = app.requests[app.selected_request_idx].clone();
-                        tx_worker.send(WorkMessage::RunRequest(active_req)).await?;
+                match app.focus {
+                    Focus::Sidebar => {
+                        match key.code {
+                            KeyCode::Char('q') => app.current_screen = CurrentScreen::Exiting,
+                            KeyCode::Down | KeyCode::Char('j') => {
+                                if app.selected_request_idx < app.requests.len().saturating_sub(1) {
+                                    app.selected_request_idx += 1;
+                                    // Update URL bar to match new selection
+                                    app.url_input = app.url_input.clone().with_value(
+                                        app.requests[app.selected_request_idx].url.clone(),
+                                    );
+                                }
+                            }
+                            KeyCode::Up | KeyCode::Char('k') => {
+                                if app.selected_request_idx > 0 {
+                                    app.selected_request_idx -= 1;
+                                    app.url_input = app.url_input.clone().with_value(
+                                        app.requests[app.selected_request_idx].url.clone(),
+                                    );
+                                }
+                            }
+                            KeyCode::Enter => {
+                                let mut active_req = app.requests[app.selected_request_idx].clone();
+                                active_req.url = app.url_input.value().to_string();
+                                tx_worker.send(WorkMessage::RunRequest(active_req)).await?;
+                            }
+                            KeyCode::Char('e') => {
+                                // Press 'e' to Edit the URL
+                                app.focus = Focus::UrlBar;
+                            }
+                            _ => {}
+                        }
                     }
-                    _ => {}
+
+                    Focus::UrlBar => match key.code {
+                        KeyCode::Esc => {
+                            // Escape returns focus to the sidebar
+                            app.focus = Focus::Sidebar;
+                        }
+                        KeyCode::Enter => {
+                            // Save the URL to our state and go back to sidebar
+                            app.requests[app.selected_request_idx].url =
+                                app.url_input.value().to_string();
+                            app.focus = Focus::Sidebar;
+                        }
+                        _ => {
+                            // Pass all other keys (letters, backspace, arrows) directly to the
+                            // input handler!
+                            app.url_input.handle_event(&Event::Key(key));
+                        }
+                    },
                 }
             }
         }
