@@ -1,5 +1,6 @@
 mod app;
 mod engine;
+mod formatter;
 mod models;
 mod parser;
 mod storage;
@@ -148,6 +149,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     continue; // CRITICAL: Skip the rest of the UI logic while popup is open!
                 }
 
+                // Scroll Response Up
+                if key.code == KeyCode::PageUp {
+                    app.response_scroll = app.response_scroll.saturating_sub(3); // Scroll 3 lines at a time
+                    continue;
+                }
+
+                // Scroll Response Down
+                if key.code == KeyCode::PageDown {
+                    app.response_scroll = app.response_scroll.saturating_sub(3);
+                    continue;
+                }
+
                 // --- GLOBAL TAB NAVIGATION ---
                 if key.code == KeyCode::Tab {
                     app.focus = match app.focus {
@@ -270,12 +283,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             match msg {
                 UiMessage::RequestStarted => {
                     app.is_loading = true;
+                    app.response_scroll = 0; // <-- Reset scroll to top on new request
+                    app.active_response = None;
                 }
                 UiMessage::RequestCompleted(res) => {
                     app.is_loading = false;
                     match res {
-                        Ok(resp) => app.active_response = Some(resp),
-                        Err(e) => app.status_message = Some(format!("❌ Error: {}", e)),
+                        Ok(resp) => {
+                            app.active_response = Some(resp);
+                            app.status_message = Some("✅ Request completed.".to_string());
+                        }
+                        Err(e) => app.status_message = Some(format!("❌ Network Error: {}", e)),
                     }
                 }
             }

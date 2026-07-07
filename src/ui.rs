@@ -2,10 +2,12 @@ use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Position, Rect},
     style::{Color, Modifier, Style},
+    text::{Line, Text},
     widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
 };
 
 use crate::app::{App, Focus};
+use crate::formatter::format_json_response;
 
 pub fn render(f: &mut Frame, app: &mut App) {
     // Split the screen horizontally into Sidebar (25%) and Main Panel (75%)
@@ -166,18 +168,31 @@ fn render_main_panel(f: &mut Frame, app: &mut App, area: Rect) {
 
     // Bottom: Response Area
     let response_content = if app.is_loading {
-        "Sending request...".to_string()
+        Text::raw("Sending request...")
     } else if let Some(resp) = &app.active_response {
-        format!(
-            "Status: {}\nTime: {}ms\n\nBody:\n{}",
-            resp.status_code, resp.duration_ms, resp.body
-        )
+        // Run the body through our syntax highlighter
+        let mut text = format_json_response(&resp.body);
+
+        // Prepend the status code and time to the top of the formatted text
+        let meta_line = Line::from(format!(
+            "Status: {}\nTime: {}ms\n",
+            resp.status_code, resp.duration_ms
+        ));
+        text.lines.insert(0, meta_line);
+        text.lines.insert(1, Line::raw("")); // Blank line for spacing
+
+        text
     } else {
-        "Awaiting request...".to_string()
+        Text::raw("Awaiting request...")
     };
 
     let response_block = Paragraph::new(response_content)
-        .block(Block::default().title(" Response ").borders(Borders::ALL));
+        .block(
+            Block::default()
+                .title(" Response (PageUp/PageDown to scroll) ")
+                .borders(Borders::ALL),
+        )
+        .scroll((app.response_scroll, 0));
     f.render_widget(response_block, chunks[2]);
 
     let status_text = app.status_message.as_deref().unwrap_or("");
