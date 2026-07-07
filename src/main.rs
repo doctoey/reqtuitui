@@ -112,6 +112,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Non-blocking poll for user input events
         if event::poll(Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
+                let is_ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+                let is_shift = key.modifiers.contains(KeyModifiers::SHIFT);
+
                 // --- POPUP INTERCEPTOR ---
                 // If the popup is open, handle its logic and IGNORE everything else.
                 if app.env_popup_open {
@@ -150,13 +153,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
 
                 // Scroll Response Up
-                if key.code == KeyCode::PageUp {
+                if key.code == KeyCode::PageUp
+                    || (is_ctrl && key.code == KeyCode::Char('u'))
+                    || (is_shift && key.code == KeyCode::Up)
+                {
                     app.response_scroll = app.response_scroll.saturating_sub(3); // Scroll 3 lines at a time
                     continue;
                 }
 
                 // Scroll Response Down
-                if key.code == KeyCode::PageDown {
+                if key.code == KeyCode::PageDown
+                    || (is_ctrl && key.code == KeyCode::Char('u'))
+                    || (is_shift && key.code == KeyCode::Up)
+                {
                     app.response_scroll = app.response_scroll.saturating_sub(3);
                     continue;
                 }
