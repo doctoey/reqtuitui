@@ -163,10 +163,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 // Scroll Response Down
                 if key.code == KeyCode::PageDown
-                    || (is_ctrl && key.code == KeyCode::Char('u'))
-                    || (is_shift && key.code == KeyCode::Up)
+                    || (is_ctrl && key.code == KeyCode::Char('d'))
+                    || (is_shift && key.code == KeyCode::Down)
                 {
-                    app.response_scroll = app.response_scroll.saturating_sub(3);
+                    app.response_scroll = app.response_scroll.saturating_add(3);
                     continue;
                 }
 

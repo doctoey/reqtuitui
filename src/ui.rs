@@ -3,7 +3,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Position, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Text},
-    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
 };
 
 use crate::app::{App, Focus};
@@ -186,6 +186,8 @@ fn render_main_panel(f: &mut Frame, app: &mut App, area: Rect) {
         Text::raw("Awaiting request...")
     };
 
+    let content_len = response_content.lines.len();
+    
     let response_block = Paragraph::new(response_content)
         .block(
             Block::default()
@@ -194,6 +196,19 @@ fn render_main_panel(f: &mut Frame, app: &mut App, area: Rect) {
         )
         .scroll((app.response_scroll, 0));
     f.render_widget(response_block, chunks[2]);
+
+    let mut scrollbar_state = ScrollbarState::default()
+        .content_length(content_len)
+        .position(app.response_scroll as usize);
+
+    f.render_stateful_widget(
+        Scrollbar::default()
+            .orientation(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("▲"))
+            .end_symbol(Some("▼")),
+        chunks[2],
+        &mut scrollbar_state,
+    );
 
     let status_text = app.status_message.as_deref().unwrap_or("");
     let status_bar =
