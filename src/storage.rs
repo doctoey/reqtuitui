@@ -1,5 +1,5 @@
 use crate::models::{ApiRequest, Collection, Environment};
-use sled::{Db, Tree};
+use sled::{Db, IVec, Tree};
 use std::error::Error;
 
 pub struct StorageManager {
@@ -106,5 +106,9 @@ impl StorageManager {
             requests.push(request);
         }
         Ok(requests)
+    }
+
+    pub fn delete_request(&self, id: &str) -> Result<Option<IVec>, Box<dyn Error>> {
+        Ok(self.requests_tree.remove(id.as_bytes())?)
     }
 }

@@ -104,10 +104,17 @@ fn render_sidebar(f: &mut Frame, app: &App, area: Rect) {
         })
         .collect();
 
+    let style = if app.focus == Focus::Sidebar {
+        Style::default().fg(Color::Yellow)
+    } else {
+        Style::default()
+    };
+
     let list = List::new(items).block(
         Block::default()
             .title(" History / Collections ")
-            .borders(Borders::ALL),
+            .borders(Borders::ALL)
+            .border_style(style),
     );
 
     f.render_widget(list, area);
@@ -134,10 +141,15 @@ fn render_main_panel(f: &mut Frame, app: &mut App, area: Rect) {
         Style::default()
     };
 
+    let url_title = format!(
+        " [{:?}] URL (Press 'e' to edit, Ctrl+Y to change method) ",
+        active_req.method
+    );
+
     // Top: Request URL Bar
     let url_block = Paragraph::new(app.url_input.value()).block(
         Block::default()
-            .title(format!(" URL: {} (Press 'e' to edit) ", active_req.name))
+            .title(url_title)
             .borders(Borders::ALL)
             .border_style(url_style),
     );

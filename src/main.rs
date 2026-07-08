@@ -18,8 +18,10 @@ use std::time::Duration;
 use std::{io, sync::Arc};
 use tokio::sync::mpsc;
 use tui_input::backend::crossterm::EventHandler;
+use uuid::Uuid;
 
 use crate::app::{CurrentScreen, Focus};
+use crate::models::{ApiRequest, BodyType, HttpMethod, RequestBody};
 use crate::{
     app::{App, UiMessage, WorkMessage},
     storage::StorageManager,
@@ -182,14 +184,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     continue;
                 }
 
-                if key.code == KeyCode::Char('e') && key.modifiers.contains(KeyModifiers::CONTROL) {
+                if key.code == KeyCode::Char('e') && is_ctrl {
                     app.env_popup_open = true;
                     // Reset the popup cursor to the currently active environment
                     app.env_popup_selected_idx = app.active_env_idx.map(|idx| idx + 1).unwrap_or(0);
                     continue;
                 }
 
-                if key.code == KeyCode::Char('s') && key.modifiers.contains(KeyModifiers::CONTROL) {
+                if key.code == KeyCode::Char('s') && is_ctrl {
                     // Step A: Get a mutable reference to the active request
                     let active_idx = app.selected_request_idx;
                     let mut request_to_save = app.requests[active_idx].clone();
@@ -212,6 +214,62 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                     continue; // Skip the rest of the key handling
+                }
+
+                if key.code == KeyCode::Char('n') && is_ctrl {
+                    let new_id = Uuid::new_v4().to_string();
+                    let blank_request = ApiRequest {
+                        id: new_id.clone(),
+                        name: "New Request".to_string(),
+                        url: "http://".to_string(),
+                        method: HttpMethod::GET,
+                        headers: std::collections::HashMap::new(),
+                        query_params: std::collections::HashMap::new(),
+                        body: RequestBody {
+                            body_type: BodyType::None,
+                            content: None,
+                        },
+                    };
+                    // 1. Save it directly to the database
+                    if let Err(e) = storage.save_request(&blank_request) {
+                        app.status_message = Some(format!("❌ Failed to create request: {}", e));
+                        continue;
+                    }
+                    // 2. Add it to out UI state
+                    app.requests.push(blank_request);
+
+                    // 3. Move the user's cursor to the very bottom of the list
+                    app.selected_request_idx = app.requests.len() - 1;
+
+                    // 4. Sync the input fields to the new blank request
+                    let req = &app.requests[app.selected_request_idx];
+                    app.url_input = app.url_input.clone().with_value(req.url.clone());
+                    app.headers_input = tui_textarea::TextArea::default();
+                    app.body_input = tui_textarea::TextArea::default();
+                    app.active_response = None;
+                    app.status_message = Some("✨ New request created!".to_string());
+
+                    continue;
+                }
+
+                if key.code == KeyCode::Char('y') && is_ctrl {
+                    let active_idx = app.selected_request_idx;
+
+                    // Cycle the method of the active request
+                    app.requests[active_idx].method = match app.requests[active_idx].method {
+                        HttpMethod::GET => HttpMethod::POST,
+                        HttpMethod::POST => HttpMethod::PUT,
+                        HttpMethod::PUT => HttpMethod::DELETE,
+                        HttpMethod::DELETE => HttpMethod::PATCH,
+                        HttpMethod::PATCH => HttpMethod::GET,
+                        _ => HttpMethod::GET,
+                    };
+
+                    app.status_message = Some(format!(
+                        "🔄 Method changed to {:?}",
+                        app.requests[active_idx].method
+                    ));
+                    continue;
                 }
 
                 // --- PANE-SPECIFIC CONTROLS ---
@@ -278,6 +336,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             KeyCode::Char('e') => {
                                 // Press 'e' to Edit the URL
                                 app.focus = Focus::UrlBar;
+                            }
+                            KeyCode::Delete | KeyCode::Backspace => {
+                                // Do not delete if it is the very last request we have open
+                                if app.requests.len() > 1 {
+                                    let active_idx = app.selected_request_idx;
+                                    let request_to_delete = &app.requests[active_idx];
+
+                                    let _ = storage.delete_request(&request_to_delete.id);
+
+                                    // Remove from the UI state
+                                    app.requests.remove(active_idx);
+
+                                    // Adjust the index so we do not go out of bounds
+                                    if app.selected_request_idx >= app.requests.len() {
+                                        app.selected_request_idx = app.requests.len() - 1;
+                                    }
+
+                                    // Sync the UI fields with the new selected request
+                                    let req = &app.requests[app.selected_request_idx];
+                                    app.url_input =
+                                        app.url_input.clone().with_value(req.url.clone());
+
+                                    let header_lines: Vec<String> = req
+                                        .headers
+                                        .iter()
+                                        .map(|(k, v)| format!("{}: {}", k, v))
+                                        .collect();
+                                    app.headers_input = tui_textarea::TextArea::new(header_lines);
+
+                                    // Update the text area with the new request's body
+                                    let body_text = req.body.content.clone().unwrap_or_default();
+                                    app.body_input = tui_textarea::TextArea::new(
+                                        body_text.lines().map(String::from).collect(),
+                                    );
+                                    app.status_message = Some("🗑️ Request deleted.".to_string());
+                                } else {
+                                    app.status_message =
+                                        Some("⚠️ Cannot delete the last request.".to_string());
+                                }
                             }
                             _ => {}
                         }
