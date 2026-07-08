@@ -155,6 +155,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     continue; // CRITICAL: Skip the rest of the UI logic while popup is open!
                 }
 
+                if app.rename_popup_open {
+                    match key.code {
+                        KeyCode::Esc => {
+                            app.rename_popup_open = false;
+                        }
+                        KeyCode::Enter => {
+                            // Save the new name
+                            let active_idx = app.selected_request_idx;
+                            app.requests[active_idx].name = app.rename_input.value().to_string();
+
+                            // Immediately save the updated request to the sled database
+                            let request_to_save = app.requests[active_idx].clone();
+                            match storage.save_request(&request_to_save) {
+                                Ok(_) => {
+                                    app.status_message = Some("✅ Request renamed.".to_string())
+                                }
+                                Err(e) => {
+                                    app.status_message = Some(format!("❌ Save failed: {}", e))
+                                }
+                            }
+
+                            app.rename_popup_open = false; // Close popup
+                        }
+                        _ => {
+                            // Pass all typing, backspaces, and arrows to the input field
+                            app.rename_input.handle_event(&Event::Key(key));
+                        }
+                    }
+                    continue;
+                }
+
                 // Scroll Response Up
                 if key.code == KeyCode::PageUp
                     || (is_ctrl && key.code == KeyCode::Char('u'))
@@ -269,6 +300,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         "🔄 Method changed to {:?}",
                         app.requests[active_idx].method
                     ));
+                    continue;
+                }
+
+                if key.code == KeyCode::Char('r') && is_ctrl {
+                    app.rename_popup_open = true;
+
+                    // Pre-fill the input box with the current request's name
+                    let current_name = app.requests[app.selected_request_idx].name.clone();
+                    app.rename_input = tui_input::Input::default().with_value(current_name);
+
                     continue;
                 }
 

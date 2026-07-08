@@ -8,6 +8,7 @@ use ratatui::{
         ScrollbarState,
     },
 };
+use tokio::io::split;
 
 use crate::app::{App, Focus};
 use crate::formatter::format_json_response;
@@ -24,6 +25,10 @@ pub fn render(f: &mut Frame, app: &mut App) {
 
     if app.env_popup_open {
         render_env_popup(f, app);
+    }
+
+    if app.rename_popup_open {
+        render_rename_popup(f, app);
     }
 }
 
@@ -85,6 +90,47 @@ fn render_env_popup(f: &mut Frame, app: &App) {
     );
 
     f.render_widget(list, area);
+}
+
+fn render_rename_popup(f: &mut Frame, app: &App) {
+    // Create a layout that centers a box exactly 3 lines high and 40 columns wide
+    let vertical_split = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length((f.area().height.saturating_sub(3)) / 2),
+            Constraint::Length(3), // Exact height for an input box with borders
+            Constraint::Min(0),
+        ])
+        .split(f.area());
+
+    let horizontal_split = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length((f.area().width.saturating_sub(40)) / 2),
+            Constraint::Length(40),
+            Constraint::Min(0),
+        ])
+        .split(vertical_split[1]);
+
+    let area = horizontal_split[1];
+
+    // Clear the background behind the popup so text doesn't bleed through
+    f.render_widget(Clear, area);
+
+    // Draw the input box
+    let block = Block::default()
+        .title(" Rename Request (Enter to save, Esc to cancel) ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Yellow));
+
+    let input_widget = Paragraph::new(app.rename_input.value()).block(block);
+    f.render_widget(input_widget, area);
+
+    // Draw the blinking cursor inside the popup
+    f.set_cursor_position(Position {
+        x: area.x + 1 + app.rename_input.visual_cursor() as u16,
+        y: area.y + 1,
+    });
 }
 
 fn render_sidebar(f: &mut Frame, app: &App, area: Rect) {

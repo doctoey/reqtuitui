@@ -47,6 +47,9 @@ pub struct App<'a> {
     // --- Popup State ---
     pub env_popup_open: bool,
     pub env_popup_selected_idx: usize,
+
+    pub rename_popup_open: bool,
+    pub rename_input: Input,
 }
 
 impl<'a> App<'a> {
@@ -91,6 +94,8 @@ impl<'a> App<'a> {
             active_env_idx: None,
             env_popup_open: false,
             env_popup_selected_idx: 0,
+            rename_popup_open: false,
+            rename_input: Input::default(),
         }
     }
 }
