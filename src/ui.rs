@@ -8,7 +8,6 @@ use ratatui::{
         ScrollbarState,
     },
 };
-use tokio::io::split;
 
 use crate::app::{App, Focus, NodeType};
 use crate::formatter::format_json_response;
