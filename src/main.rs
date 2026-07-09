@@ -22,7 +22,7 @@ use uuid::Uuid;
 
 use crate::app::{CurrentScreen, Focus, NodeType};
 use crate::models::{
-    ApiRequest, BodyType, Collection, CollectionItem, Folder, HttpMethod, RequestBody,
+    ApiRequest, BodyType, Collection, CollectionItem, EnvVariable, Folder, HttpMethod, RequestBody,
 };
 use crate::{
     app::{App, UiMessage, WorkMessage},
@@ -37,28 +37,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 2. RESTORE WORKSPACE FROM STORAGE (or create default)
     let root_workspace_id = "root_workspace";
 
-    // For demonstration, pull from Sled or fallback to a default mock vector
-    let mock_envs = vec![
-        models::Environment {
-            id: "env_1".into(),
+    let mut loaded_envs = storage.get_all_environments().unwrap_or_default();
+
+    if loaded_envs.is_empty() {
+        let default_env = models::Environment {
+            id: "env_default_1".into(),
             name: "Local Dev".into(),
             variables: vec![models::EnvVariable {
                 key: "base_url".into(),
                 value: "http://localhost:8080".into(),
                 enabled: true,
             }],
-        },
-        models::Environment {
-            id: "env_2".into(),
-            name: "Production".into(),
-            variables: vec![models::EnvVariable {
-                key: "base_url".into(),
-                value: "https://jsonplaceholder.typicode.com".into(),
-                enabled: true,
-            }],
-        },
-    ];
-    //let mock_requests = storage.get_all_requests().unwrap_or_default();
+        };
+
+        if let Err(e) = storage.save_environment(&default_env) {
+            eprintln!("Failed to save default environment: {}", e);
+        }
+
+        loaded_envs.push(default_env);
+    }
+
     let my_workspace = match storage.get_collection(root_workspace_id) {
         Ok(Some(saved_collection)) => {
             // Successfuly loaded from Sled!
@@ -87,7 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     };
 
-    let mut app = App::new(my_workspace, mock_envs);
+    let mut app = App::new(my_workspace, loaded_envs);
 
     // 2. Setup Channels for Inter-Thread Communication
     let (tx_worker, mut rx_worker) = mpsc::channel::<WorkMessage>(100);
@@ -134,9 +132,101 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let is_shift = key.modifiers.contains(KeyModifiers::SHIFT);
 
                 // --- POPUP INTERCEPTOR ---
+                if app.new_env_popup_open {
+                    match key.code {
+                        KeyCode::Esc => {
+                            app.new_env_popup_open = false;
+                        }
+                        KeyCode::Enter => {
+                            let env_name = app.new_env_input.value().to_string();
+
+                            // Create a completely empty environment
+                            let new_env = models::Environment {
+                                id: uuid::Uuid::new_v4().to_string(),
+                                name: env_name,
+                                variables: vec![],
+                            };
+
+                            // Save to Sled Database
+                            if let Err(e) = storage.save_environment(&new_env) {
+                                app.status_message =
+                                    Some(format!("❌ Failed to save environment: {}", e));
+                            } else {
+                                app.status_message =
+                                    Some("🌍 New environment created!".to_string());
+
+                                // Add to UI state and automatically select it
+                                app.environments.push(new_env);
+                                app.active_env_idx = Some(app.environments.len() - 1);
+                            }
+
+                            app.new_env_popup_open = false;
+                        }
+                        _ => {
+                            app.new_env_input.handle_event(&Event::Key(key));
+                        }
+                    }
+                    continue;
+                }
+
+                if app.env_var_popup_open {
+                    if key.code == KeyCode::Esc {
+                        app.env_var_popup_open = false;
+                        continue;
+                    }
+
+                    if key.code == KeyCode::Char('s') && is_ctrl {
+                        let env_idx = app.env_popup_selected_idx.saturating_sub(1);
+
+                        let new_vars = parse_env_vars_from_ui(app.env_var_input.lines());
+
+                        app.environments[env_idx].variables = new_vars;
+
+                        let updated_env = &app.environments[env_idx];
+                        if let Err(e) = storage.save_environment(updated_env) {
+                            app.status_message =
+                                Some(format!("❌ Failed to save variables: {}", e));
+                        } else {
+                            app.status_message =
+                                Some(format!("✅ Variables saved for {}", updated_env.name));
+                        }
+                        app.env_var_popup_open = false;
+                        continue;
+                    }
+                    app.env_var_input.input(key);
+                    continue;
+                }
+
                 // If the popup is open, handle its logic and IGNORE everything else.
                 if app.env_popup_open {
                     match key.code {
+                        KeyCode::Char('n') => {
+                            // Lanuch the new environment creator!
+                            app.env_popup_open = false;
+                            app.new_env_popup_open = true;
+                            app.new_env_input = tui_input::Input::default();
+                        }
+                        KeyCode::Char('v') => {
+                            // Open the variable editor!
+                            if app.env_popup_selected_idx > 0 {
+                                let env_idx = app.env_popup_selected_idx - 1;
+                                let target_env = &app.environments[env_idx];
+
+                                // Format the existing variables into "KEY=VALUE" lines
+                                let var_lines: Vec<String> = target_env
+                                    .variables
+                                    .iter()
+                                    .map(|v| format!("{}={}", v.key, v.value))
+                                    .collect();
+
+                                app.env_var_input = tui_textarea::TextArea::new(var_lines);
+                                app.env_var_popup_open = true; // Show the editor
+                            } else {
+                                app.status_message = Some(
+                                    "⚠️ Cannot edit variables for 'No Environment'.".to_string(),
+                                );
+                            }
+                        }
                         KeyCode::Esc => {
                             app.env_popup_open = false; // Close without saving
                         }
@@ -552,4 +642,23 @@ fn parse_headers_from_ui(lines: &[String]) -> HashMap<String, String> {
         }
     }
     headers
+}
+
+fn parse_env_vars_from_ui(lines: &[String]) -> Vec<EnvVariable> {
+    let mut vars = Vec::new();
+    for line in lines {
+        // Split at the first '=' sign
+        if let Some((key, value)) = line.split_once('=') {
+            let k = key.trim().to_string();
+            let v = value.trim().to_string();
+            if !k.is_empty() {
+                vars.push(EnvVariable {
+                    key: k,
+                    value: v,
+                    enabled: true, // Default to true
+                });
+            }
+        }
+    }
+    vars
 }

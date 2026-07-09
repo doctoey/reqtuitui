@@ -29,6 +29,14 @@ pub fn render(f: &mut Frame, app: &mut App) {
     if app.rename_popup_open {
         render_rename_popup(f, app);
     }
+
+    if app.new_env_popup_open {
+        render_new_env_popup(f, app);
+    }
+
+    if app.env_var_popup_open {
+        render_env_var_popup(f, app);
+    }
 }
 
 // Helper function to create a centered rectangle for out popup
@@ -84,11 +92,77 @@ fn render_env_popup(f: &mut Frame, app: &App) {
 
     let list = List::new(items).block(
         Block::default()
-            .title(" Select Environment (ESC to cancel) ")
+            .title(" Select Environment (ESC cancel, 'n' new, 'v' edit vars) ")
             .borders(Borders::ALL),
     );
 
     f.render_widget(list, area);
+}
+
+fn render_env_var_popup(f: &mut Frame, app: &mut App) {
+    // Make this popup slightly larger (60% width, 60% height)
+    let area = centered_rect(60, 60, f.area());
+
+    // Clear the background
+    f.render_widget(Clear, area);
+
+    // Identify which environment we are editing for the title
+    let env_name = if app.env_popup_selected_idx == 0 {
+        "None".to_string()
+    } else {
+        app.environments[app.env_popup_selected_idx - 1]
+            .name
+            .clone()
+    };
+
+    app.env_var_input.set_block(
+        Block::default()
+            .title(format!(
+                " Edit Variables for '{}' (Format: KEY=VALUE, Ctrl+S to save) ",
+                env_name
+            ))
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Yellow)),
+    );
+
+    f.render_widget(&app.env_var_input, area);
+}
+
+fn render_new_env_popup(f: &mut Frame, app: &App) {
+    // Re-using the exact layout math from the rename popup for consisitency
+    let vertical_split = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length((f.area().height.saturating_sub(3)) / 2),
+            Constraint::Length(3),
+            Constraint::Min(0),
+        ])
+        .split(f.area());
+
+    let horizontal_split = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length((f.area().width.saturating_sub(40)) / 2),
+            Constraint::Length(40),
+            Constraint::Min(0),
+        ])
+        .split(vertical_split[1]);
+
+    let area = horizontal_split[1];
+    f.render_widget(Clear, area);
+
+    let block = Block::default()
+        .title(" New Environment Name (Enter to save) ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::LightGreen));
+
+    let input_widget = Paragraph::new(app.new_env_input.value()).block(block);
+    f.render_widget(input_widget, area);
+
+    f.set_cursor_position(Position {
+        x: area.x + 1 + app.new_env_input.visual_cursor() as u16,
+        y: area.y + 1,
+    });
 }
 
 fn render_rename_popup(f: &mut Frame, app: &App) {

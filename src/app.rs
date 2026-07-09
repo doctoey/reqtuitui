@@ -71,6 +71,14 @@ pub struct App<'a> {
     pub root_collection: Collection,
     pub expanded_folders: HashSet<String>, // Stores IDs of open Folders
     pub selected_node_idx: usize,          // Replaces selected_request_idx
+
+    // --- New Environment Popup State ---
+    pub new_env_popup_open: bool,
+    pub new_env_input: Input,
+
+    // --- Environment Variable Editor State ---
+    pub env_var_popup_open: bool,
+    pub env_var_input: tui_textarea::TextArea<'a>,
 }
 
 impl<'a> App<'a> {
@@ -96,6 +104,10 @@ impl<'a> App<'a> {
             env_popup_selected_idx: 0,
             rename_popup_open: false,
             rename_input: Input::default(),
+            new_env_popup_open: false,
+            new_env_input: Input::default(),
+            env_var_popup_open: false,
+            env_var_input: tui_textarea::TextArea::default(),
         };
 
         app.sync_ui_to_selected_node();

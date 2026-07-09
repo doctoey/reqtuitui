@@ -45,6 +45,19 @@ impl StorageManager {
         }
     }
 
+    pub fn get_all_environments(&self) -> Result<Vec<Environment>, Box<dyn Error>> {
+        let mut envs = Vec::new();
+
+        // Iterate over the environments tree namespace
+        for item in self.environments_tree.iter() {
+            let (_, value) = item?;
+            let env: Environment = serde_json::from_slice(&value)?;
+            envs.push(env);
+        }
+
+        Ok(envs)
+    }
+
     // --- COLLECTION STORAGE ---
 
     pub fn save_collection(&self, collection: &Collection) -> Result<(), Box<dyn Error>> {
