@@ -34,6 +34,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 1. Initialize Storage and Mock Data
     let storage = StorageManager::new(".requestui_db")?;
 
+    // 2. RESTORE WORKSPACE FROM STORAGE (or create default)
+    let root_workspace_id = "root_workspace";
+
     // For demonstration, pull from Sled or fallback to a default mock vector
     let mock_envs = vec![
         models::Environment {
@@ -56,26 +59,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     ];
     //let mock_requests = storage.get_all_requests().unwrap_or_default();
-    let my_workspace = Collection {
-        id: "col_1".into(),
-        name: "My Workspace".into(),
-        description: None,
-        items: vec![CollectionItem::Folder(Folder {
-            id: "f_1".into(),
-            name: "User API".into(),
-            items: vec![CollectionItem::Request(ApiRequest {
-                id: "1".into(),
-                name: "Get JSON data".into(),
-                url: "{{base_url}}/posts/1".into(),
-                method: models::HttpMethod::GET,
-                headers: std::collections::HashMap::new(),
-                query_params: std::collections::HashMap::new(),
-                body: models::RequestBody {
-                    body_type: models::BodyType::None,
-                    content: None,
-                },
+    let my_workspace = match storage.get_collection(root_workspace_id) {
+        Ok(Some(saved_collection)) => {
+            // Successfuly loaded from Sled!
+            saved_collection
+        }
+        _ => Collection {
+            id: root_workspace_id.to_string(),
+            name: "My Workspace".into(),
+            description: None,
+            items: vec![CollectionItem::Folder(Folder {
+                id: "f_1".into(),
+                name: "User API".into(),
+                items: vec![CollectionItem::Request(ApiRequest {
+                    id: "1".into(),
+                    name: "Get JSON data".into(),
+                    url: "{{base_url}}/posts/1".into(),
+                    method: models::HttpMethod::GET,
+                    headers: std::collections::HashMap::new(),
+                    query_params: std::collections::HashMap::new(),
+                    body: models::RequestBody {
+                        body_type: models::BodyType::None,
+                        content: None,
+                    },
+                })],
             })],
-        })],
+        },
     };
 
     let mut app = App::new(my_workspace, mock_envs);
@@ -432,8 +441,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 // 3. Shift the cursor up so it doesn't crash on out-of-bounds
                                 let updated_nodes = app.get_visible_nodes();
                                 if app.selected_node_idx >= updated_nodes.len() {
-                                    app.selected_node_idx =
-                                        updated_nodes.len().saturating_sub(1);
+                                    app.selected_node_idx = updated_nodes.len().saturating_sub(1);
                                 }
 
                                 // 4. Sync the text editors with whatever item we landed on
