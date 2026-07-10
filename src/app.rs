@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::models::{
-    ApiRequest, ApiResponse, Collection, CollectionItem, EnvVariable, Environment,
+    ApiRequest, ApiResponse, Collection, CollectionItem, EnvVariable, Environment, Folder,
 };
 use tui_input::Input;
 use tui_textarea::TextArea;
@@ -195,47 +195,86 @@ impl<'a> App<'a> {
     /// Intelligently adds a new request to the tree based on cursor position
     pub fn add_new_request(&mut self, new_req: ApiRequest) {
         let nodes = self.get_visible_nodes();
+        let new_item = CollectionItem::Request(new_req);
 
         if let Some(active_node) = nodes.get(self.selected_node_idx) {
             match &active_node.node_type {
-                NodeType::Folder { .. } => {
-                    // It's a folder! Insert inside it.
-                    Self::insert_into_folder(
-                        &mut self.root_collection.items,
-                        &active_node.id,
-                        new_req,
-                    );
-                    // Force the folder open so the user sees their new request
-                    self.expanded_folders.insert(active_node.id.clone());
+                NodeType::Folder { expended } => {
+                    if *expended {
+                        Self::insert_item_into_folder(
+                            &mut self.root_collection.items,
+                            &active_node.id,
+                            new_item,
+                        );
+                    } else {
+                        Self::insert_sibling_after(
+                            &mut self.root_collection.items,
+                            &active_node.id,
+                            new_item,
+                        );
+                    }
                 }
                 NodeType::Request(_) => {
-                    // It's a request. Add to the root workspace.
-                    self.root_collection
-                        .items
-                        .push(CollectionItem::Request(new_req));
+                    Self::insert_sibling_after(
+                        &mut self.root_collection.items,
+                        &active_node.id,
+                        new_item,
+                    );
                 }
             }
         } else {
             // Tree is completely empty. add to root
-            self.root_collection
-                .items
-                .push(CollectionItem::Request(new_req));
+            self.root_collection.items.push(new_item);
         }
     }
 
-    fn insert_into_folder(
-        items: &mut Vec<CollectionItem>,
+    pub fn add_new_folder(&mut self, new_folder: Folder) {
+        let nodes = self.get_visible_nodes();
+        let new_item = CollectionItem::Folder(new_folder);
+
+        if let Some(active_node) = nodes.get(self.selected_node_idx) {
+            match &active_node.node_type {
+                NodeType::Folder { expended } => {
+                    if *expended {
+                        Self::insert_item_into_folder(
+                            &mut self.root_collection.items,
+                            &active_node.id,
+                            new_item,
+                        );
+                    } else {
+                        Self::insert_sibling_after(
+                            &mut self.root_collection.items,
+                            &active_node.id,
+                            new_item,
+                        );
+                    }
+                }
+                NodeType::Request(_) => {
+                    Self::insert_sibling_after(
+                        &mut self.root_collection.items,
+                        &active_node.id,
+                        new_item,
+                    );
+                }
+            }
+        } else {
+            self.root_collection.items.push(new_item);
+        }
+    }
+
+    fn insert_item_into_folder(
+        items: &mut [CollectionItem],
         target_folder_id: &str,
-        new_req: ApiRequest,
+        new_item: CollectionItem,
     ) -> bool {
         for item in items.iter_mut() {
             if let CollectionItem::Folder(f) = item {
                 if f.id == target_folder_id {
-                    f.items.push(CollectionItem::Request(new_req.clone()));
+                    f.items.push(new_item.clone());
                     return true;
                 }
                 // Recursively check sub-folders
-                if Self::insert_into_folder(&mut f.items, target_folder_id, new_req.clone()) {
+                if Self::insert_item_into_folder(&mut f.items, target_folder_id, new_item.clone()) {
                     return true;
                 }
             }
@@ -313,6 +352,33 @@ impl<'a> App<'a> {
                     }
                 }
                 _ => {}
+            }
+        }
+        false
+    }
+
+    /// Finds the target node and inserts the new item exactly one slot below it
+    fn insert_sibling_after(
+        items: &mut Vec<CollectionItem>,
+        target_id: &str,
+        new_item: CollectionItem,
+    ) -> bool {
+        // Check if the target exists in the current level of the array
+        if let Some(pos) = items.iter().position(|i| match i {
+            CollectionItem::Request(r) => r.id == target_id,
+            CollectionItem::Folder(f) => f.id == target_id,
+        }) {
+            // Found it! Insert the new item right below the target
+            items.insert(pos + 1, new_item);
+            return true;
+        }
+
+        // If not found at this level, recursively search inside sub-folders
+        for item in items.iter_mut() {
+            if let CollectionItem::Folder(f) = item {
+                if Self::insert_sibling_after(&mut f.items, target_id, new_item.clone()) {
+                    return true;
+                }
             }
         }
         false

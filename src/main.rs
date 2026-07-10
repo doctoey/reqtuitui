@@ -448,6 +448,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     continue;
                 }
 
+                if key.code == KeyCode::Char('f') && is_ctrl {
+                    let new_id = Uuid::new_v4().to_string();
+                    let blank_folder = models::Folder {
+                        id: new_id.clone(),
+                        name: "New Folder".to_string(),
+                        items: vec![], // Starts empty
+                    };
+
+                    // 1. Add it to our nested tree state
+                    app.add_new_folder(blank_folder);
+
+                    // 2. Save the entire updated collection to the database
+                    if let Err(e) = storage.save_collection(&app.root_collection) {
+                        app.status_message = Some(format!("❌ Save failed: {}", e));
+                        continue;
+                    }
+
+                    // 3. Move the user's cursor to the newly created folder
+                    let nodes = app.get_visible_nodes();
+                    if let Some(new_idx) = nodes.iter().position(|n| n.id == new_id) {
+                        app.selected_node_idx = new_idx;
+                    }
+
+                    // 4. Sync the text fields (This will clear the editors and show the Folder
+                    //    Splash Screen)
+                    app.sync_ui_to_selected_node();
+
+                    app.status_message = Some("📁 New folder created!".to_string());
+                    continue;
+                }
+
                 // --- PANE-SPECIFIC CONTROLS ---
                 match app.focus {
                     Focus::Sidebar => {
