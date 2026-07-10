@@ -79,6 +79,10 @@ pub struct App<'a> {
     // --- Environment Variable Editor State ---
     pub env_var_popup_open: bool,
     pub env_var_input: tui_textarea::TextArea<'a>,
+
+    // --- Import Popup State ---
+    pub import_popup_open: bool,
+    pub import_input: tui_textarea::TextArea<'a>,
 }
 
 impl<'a> App<'a> {
@@ -108,6 +112,9 @@ impl<'a> App<'a> {
             new_env_input: Input::default(),
             env_var_popup_open: false,
             env_var_input: tui_textarea::TextArea::default(),
+
+            import_popup_open: false,
+            import_input: tui_textarea::TextArea::default(),
         };
 
         app.sync_ui_to_selected_node();

@@ -1,6 +1,7 @@
 mod app;
 mod engine;
 mod formatter;
+mod importer;
 mod models;
 mod parser;
 mod storage;
@@ -132,6 +133,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let is_shift = key.modifiers.contains(KeyModifiers::SHIFT);
 
                 // --- POPUP INTERCEPTOR ---
+                if app.import_popup_open {
+                    if key.code == KeyCode::Esc {
+                        app.import_popup_open = false; // Cancel import 
+                        continue;
+                    }
+
+                    if key.code == KeyCode::Char('s') && is_ctrl {
+                        // 1. Get the raw text they pasted
+                        let raw_curl = app.import_input.lines().join("\n");
+
+                        // 2. Pass it to our parser
+                        match importer::parse_curl(&raw_curl) {
+                            Ok(new_request) => {
+                                // 3. Add the parsed request intelligently to the tree!
+                                app.add_new_request(new_request);
+
+                                // 4. Save to database
+                                let _ = storage.save_collection(&app.root_collection);
+
+                                // 5. Update UI
+                                app.sync_ui_to_selected_node();
+                                app.status_message =
+                                    Some("🚀 Successfully imported cURL command!".to_string());
+                            }
+                            Err(e) => {
+                                app.status_message = Some(format!("❌ Import Failed: {}", e));
+                            }
+                        }
+                        app.import_popup_open = false;
+                        continue;
+                    }
+
+                    // Pass standard typing (and pasting!) directly into the text area
+                    app.import_input.input(key);
+                    continue;
+                }
+
                 if app.new_env_popup_open {
                     match key.code {
                         KeyCode::Esc => {
@@ -476,6 +514,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     app.sync_ui_to_selected_node();
 
                     app.status_message = Some("📁 New folder created!".to_string());
+                    continue;
+                }
+
+                if key.code == KeyCode::Char('o') && is_ctrl {
+                    app.import_popup_open = true;
+                    app.import_input = tui_textarea::TextArea::default(); // Reset the input box
                     continue;
                 }
 

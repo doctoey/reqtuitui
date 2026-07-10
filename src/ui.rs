@@ -37,6 +37,10 @@ pub fn render(f: &mut Frame, app: &mut App) {
     if app.env_var_popup_open {
         render_env_var_popup(f, app);
     }
+
+    if app.import_popup_open {
+        render_import_popup(f, app);
+    }
 }
 
 // Helper function to create a centered rectangle for out popup
@@ -58,6 +62,21 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(popup_layout[1])[1]
+}
+
+fn render_import_popup(f: &mut Frame, app: &mut App) {
+    // A large 70% width/height box to paste giant curl commands
+    let area = centered_rect(70, 70, f.area());
+    f.render_widget(Clear, area);
+
+    app.import_input.set_block(
+        Block::default()
+            .title(" Import from cURL (Paste your command, press Ctrl+S to import) ")
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Cyan)),
+    );
+
+    f.render_widget(&app.import_input, area);
 }
 
 fn render_env_popup(f: &mut Frame, app: &App) {
