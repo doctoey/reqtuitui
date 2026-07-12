@@ -481,6 +481,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 _ => HttpMethod::GET,
                             };
 
+                            // Automatically adjust body type based on method transition
+                            updated_req.body.body_type = match updated_req.method {
+                                HttpMethod::POST | HttpMethod::PUT | HttpMethod::PATCH => {
+                                    if updated_req.body.body_type == BodyType::None {
+                                        BodyType::RawJson
+                                    } else {
+                                        updated_req.body.body_type
+                                    }
+                                }
+                                HttpMethod::GET | HttpMethod::DELETE | HttpMethod::HEAD | HttpMethod::OPTIONS => {
+                                    BodyType::None
+                                }
+                            };
+
                             updated_req.url = app.url_input.value().to_string();
                             updated_req.headers = parse_headers_from_ui(app.headers_input.lines());
                             updated_req.body.content = Some(app.body_input.lines().join("\n"));
@@ -494,6 +508,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         } else {
                             app.status_message =
                                 Some("⚠️ Cannot change HTTP method of a folder.".to_string());
+                        }
+                    }
+
+                    continue;
+                }
+
+                if key.code == KeyCode::Char('b') && is_ctrl {
+                    let nodes = app.get_visible_nodes();
+
+                    if let Some(active_node) = nodes.get(app.selected_node_idx) {
+                        // Only allow body type cycling if it's a Request!
+                        if let NodeType::Request(req) = &active_node.node_type {
+                            let mut updated_req = req.clone();
+
+                            // Cycle the body type of the active request
+                            updated_req.body.body_type = match req.body.body_type {
+                                BodyType::None => BodyType::RawJson,
+                                BodyType::RawJson => BodyType::RawText,
+                                BodyType::RawText => BodyType::FormData,
+                                BodyType::FormData => BodyType::None,
+                            };
+
+                            updated_req.url = app.url_input.value().to_string();
+                            updated_req.headers = parse_headers_from_ui(app.headers_input.lines());
+                            updated_req.body.content = Some(app.body_input.lines().join("\n"));
+
+                            app.update_request_in_tree(&updated_req);
+
+                            let _ = storage.save_collection(&app.root_collection);
+
+                            app.status_message =
+                                Some(format!("🔄 Body type changed to {:?}", updated_req.body.body_type));
+                        } else {
+                            app.status_message =
+                                Some("⚠️ Cannot change body type of a folder.".to_string());
                         }
                     }
 

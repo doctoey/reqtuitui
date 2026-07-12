@@ -59,6 +59,7 @@ reqtuitui
 - **`Ctrl + G`**: Open the Global Cookie Jar popup editor
 - **`Ctrl + O`**: Import cURL command
 - **`Ctrl + Y`**: Cycle HTTP method (GET, POST, PUT, DELETE, PATCH)
+- **`Ctrl + B`**: Cycle request body type (None, RawJson, RawText, FormData)
 - **`Ctrl + R`**: Rename selected folder or request
 - **`F2`**: Toggle Zen Mode (zoom/unzoom) for Headers and Body editors
 - **`F3`**: Format JSON request body (when Body editor is focused)

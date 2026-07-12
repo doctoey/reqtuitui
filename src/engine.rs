@@ -38,20 +38,56 @@ impl HttpManager {
         let method = match req_data.method {
             crate::models::HttpMethod::GET => Method::GET,
             crate::models::HttpMethod::POST => Method::POST,
-            _ => Method::GET,
+            crate::models::HttpMethod::PUT => Method::PUT,
+            crate::models::HttpMethod::DELETE => Method::DELETE,
+            crate::models::HttpMethod::PATCH => Method::PATCH,
+            crate::models::HttpMethod::OPTIONS => Method::OPTIONS,
+            crate::models::HttpMethod::HEAD => Method::HEAD,
         };
 
         // Convert HashMap headers to reqwest HeaderMap
         let mut headers = HeaderMap::new();
+        let mut has_content_type = false;
         for (k, v) in req_data.headers {
             let parsed_key = self.parser.parse_string(&k, active_env);
             let parsed_val = self.parser.parse_string(&v, active_env);
+
+            // Strip manual/stale Content-Length to let reqwest compute it automatically
+            if parsed_key.to_lowercase() == "content-length" {
+                continue;
+            }
+
+            if parsed_key.to_lowercase() == "content-type" {
+                has_content_type = true;
+            }
 
             if let (Ok(name), Ok(value)) = (
                 HeaderName::from_str(&parsed_key),
                 HeaderValue::from_str(&parsed_val),
             ) {
                 headers.insert(name, value);
+            }
+        }
+
+        // Add default Content-Type header if not explicitly set by the user
+        if !has_content_type {
+            match req_data.body.body_type {
+                BodyType::RawJson => {
+                    if let Ok(value) = HeaderValue::from_str("application/json") {
+                        headers.insert(reqwest::header::CONTENT_TYPE, value);
+                    }
+                }
+                BodyType::RawText => {
+                    if let Ok(value) = HeaderValue::from_str("text/plain") {
+                        headers.insert(reqwest::header::CONTENT_TYPE, value);
+                    }
+                }
+                BodyType::FormData => {
+                    if let Ok(value) = HeaderValue::from_str("application/x-www-form-urlencoded") {
+                        headers.insert(reqwest::header::CONTENT_TYPE, value);
+                    }
+                }
+                BodyType::None => {}
             }
         }
 
