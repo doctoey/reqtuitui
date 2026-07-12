@@ -7,6 +7,7 @@ A beautiful and efficient Terminal UI (TUI) for making HTTP requests, built with
 - **Interactive TUI:** Fast, keyboard-driven interface for crafting and sending HTTP requests.
 - **cURL Support:** Import and parse cURL commands directly into the UI.
 - **JSON Support:** Built-in JSON formatting and request bodies.
+- **Zen Mode:** Full-screen zoom for Headers and Body editors to focus on editing.
 - **State Persistence:** Automatically saves your session state and requests history.
 - **Persistent Global Cookie Jar:** A central, state-saved store for cookies that automatically injects them into outgoing requests and extracts new cookies from server responses.
 
@@ -59,6 +60,8 @@ reqtuitui
 - **`Ctrl + O`**: Import cURL command
 - **`Ctrl + Y`**: Cycle HTTP method (GET, POST, PUT, DELETE, PATCH)
 - **`Ctrl + R`**: Rename selected folder or request
+- **`F2`**: Toggle Zen Mode (zoom/unzoom) for Headers and Body editors
+- **`F3`**: Format JSON request body (when Body editor is focused)
 - **`PageUp` / `PageDown`**: Scroll response view up/down (also `Ctrl+U`/`Ctrl+D`)
 - **`Esc`**: Close popups or cancel actions
 
