@@ -4,9 +4,9 @@ mod formatter;
 mod importer;
 mod models;
 mod parser;
+mod response_viewer;
 mod storage;
 mod ui;
-mod response_viewer;
 
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use crossterm::execute;
@@ -490,9 +490,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         updated_req.body.body_type
                                     }
                                 }
-                                HttpMethod::GET | HttpMethod::DELETE | HttpMethod::HEAD | HttpMethod::OPTIONS => {
-                                    BodyType::None
-                                }
+                                HttpMethod::GET
+                                | HttpMethod::DELETE
+                                | HttpMethod::HEAD
+                                | HttpMethod::OPTIONS => BodyType::None,
                             };
 
                             updated_req.url = app.url_input.value().to_string();
@@ -538,8 +539,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                             let _ = storage.save_collection(&app.root_collection);
 
-                            app.status_message =
-                                Some(format!("🔄 Body type changed to {:?}", updated_req.body.body_type));
+                            app.status_message = Some(format!(
+                                "🔄 Body type changed to {:?}",
+                                updated_req.body.body_type
+                            ));
                         } else {
                             app.status_message =
                                 Some("⚠️ Cannot change body type of a folder.".to_string());
