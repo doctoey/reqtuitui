@@ -64,6 +64,7 @@ reqtuitui
 - **`F2`**: Toggle Zen Mode (zoom/unzoom) for Headers and Body editors
 - **`F3`**: Format JSON request body (when Body editor is focused)
 - **`PageUp` / `PageDown`**: Scroll response view up/down (also `Ctrl+U`/`Ctrl+D`)
+- **`Ctrl + C`**: Copy response body to clipboard
 - **`Esc`**: Close popups or cancel actions
 
 #### Sidebar (List) Controls
